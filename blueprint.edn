@@ -9,4 +9,50 @@
  :itonami.blueprint/required-technologies [:robotics :identity :forms :dmn :bpmn :audit-ledger :cae]
  :itonami.blueprint/optional-technologies [:optimization :telemetry]
  :itonami.blueprint/status :public-oss
- :itonami.blueprint/maturity :blueprint}
+ :itonami.blueprint/maturity :implemented
+ :itonami.blueprint/implemented-slice
+ "SugarOpsAdvisor ⊣ Sugar Governor, a REAL compiled `kotoba-lang/
+ langgraph` StateGraph (`sugarops.operation/build`:
+ `:intake -> :advise -> :govern -> :decide -+-> :commit /
+ :request-approval -> :commit / :hold`), append-only audit ledger
+ (`sugarops.store/ledger` + `append-ledger!`, `MemStore` and a
+ `DatomicStore` backed by `langchain.db` via `langchain-store.core`).
+ Replaces a previously deferred actor: `deps.edn` had an empty
+ top-level `:deps {}` with langgraph only reachable via `:dev`
+ override-deps (nothing to override); `sugarops.advisor` was a pure
+ docstring with no `defprotocol`/implementation at all (a skeleton,
+ not a stub); `sugarops.operation` had no `build`, only the pure
+ `run-operation`, which took a bare PROPOSAL as a function argument
+ rather than ever obtaining one from an Advisor; no audit ledger
+ existed anywhere in the repo (`store/append-fact` was dead code,
+ only called from tests). Now: `sugarops.advisor` has a real
+ `Advisor` protocol + `MockAdvisor` genuinely called from the
+ compiled graph's `:advise` node; `sugarops.store` gained a `Store`
+ protocol + `MemStore` + `DatomicStore` (proven ≡ by a new
+ store-contract test) LAYERED ON TOP OF the original pure-map
+ functions (`production-batch`/`batch-already-processed?`/`batch-
+ shipment-finalized?` made polymorphic so `sugarops.governor`'s 18
+ hard-violation checks work unchanged against either a plain map or a
+ live Store); `interrupt-before #{:request-approval}` + an in-memory
+ checkpointer give escalated proposals a GENUINE human-in-the-loop
+ pause/resume; BOTH `:commit` and `:hold` durably append to the real
+ ledger, and `:commit` also applies the real batch-lifecycle side
+ effect (`store/log-batch!`/`finalize-shipment!`). Four ops
+ (`:log-production-batch` / `:schedule-maintenance` /
+ `:flag-food-safety-concern` / `:coordinate-shipment`), all `:effect
+ :propose` only; 18 HARD invariants (op-not-allowed,
+ effect-not-propose, batch-not-registered, no-spec-basis,
+ evidence-incomplete, moisture/polarization/color/ash/SO2/granulation
+ out-of-spec, foreign-material-detected, metal-detector-calibration-
+ overdue, weight-variance-excessive, sulfite-label-mismatch,
+ sanitation-score-insufficient, food-safety-flag-unresolved,
+ already-processed, already-shipment-finalized) plus three
+ always-escalate high-stakes ops (`:log-production-batch`/
+ `:coordinate-shipment`/`:flag-food-safety-concern`) elaborate this
+ blueprint's Governor -- proven end-to-end through the REAL compiled
+ graph by a new `test/sugarops/build_test.cljc` (commit / hard-hold /
+ escalate-approve-and-mark-processed / escalate-reject-holds) plus a
+ `clojure -M:dev:run` demo runner producing 4 distinct real ledger
+ entries. 62 tests / 230 assertions green (`clojure -M:dev:test`,
+ ALL pre-existing tests still pass unchanged), clj-kondo 0 errors / 0
+ warnings."}

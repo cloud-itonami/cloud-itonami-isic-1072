@@ -4,6 +4,32 @@
 
 A distributed actor for autonomous, compliant coordination of sugar-manufacturing plant operations: cane/beet intake → extraction (milling/diffusion) → clarification (liming/carbonation/sulfitation) → crystallization/evaporation → centrifuging → moisture/polarization/color/ash-content/granulation/SO2-residue inspection → sulfite labeling → finished-product logistics. Sealed LLM advisor; independent Governor enforcement; append-only audit ledger. **Not equipment control.** Vacuum-pan evaporator, crystallizer, and centrifuge operation and food-safety certification authority remain exclusive to licensed sugar-refinery plant staff and regulators.
 
+**Maturity: `:implemented`.** The advisor → governor → decide → commit/hold
+flow is a REAL, compiled [`kotoba-lang/langgraph`](https://github.com/kotoba-lang/langgraph)
+`StateGraph` (`sugarops.operation/build`), not a synchronous stub:
+
+```text
+:intake -> :advise -> :govern -> :decide -+-> :commit                        (:hard? false, :escalate? false)
+                                           +-> :request-approval -> :commit    (:escalate? true, interrupt-before)
+                                           +-> :hold                          (:hard? true)
+```
+
+An earlier version of this repo had `deps.edn`'s top-level `:deps {}`
+empty (langgraph only reachable via `:dev` override-deps, nothing to
+actually override), `sugarops.advisor` was a pure docstring with no
+`defprotocol`/implementation at all, `sugarops.operation` had no
+`build` (only the pure `run-operation`, which took a bare PROPOSAL as
+a function argument rather than ever obtaining one from an Advisor),
+and no audit ledger existed anywhere in the repo. All of that is now
+closed: `sugarops.advisor` has a real `Advisor` protocol +
+`MockAdvisor` genuinely called from the compiled graph's `:advise`
+node; `sugarops.store` gained a `Store` protocol + `MemStore` + a
+`DatomicStore` (via [`kotoba-lang/langchain-store`](https://github.com/kotoba-lang/langchain-store),
+no hand-rolled EDN-blob codec) layered on top of the original
+pure-map functions (so `sugarops.governor`'s 18 hard-violation checks
+work unchanged against either a plain map or a live Store); BOTH
+`:commit` and `:hold` durably append to the real audit ledger.
+
 ## Scope
 
 This actor coordinates **plant-operations workflow** for sugar manufacturing (refined white sugar, raw cane sugar, refined beet sugar, brown/soft sugar):
@@ -60,17 +86,23 @@ Closed allowlist — the advisor may **only** ever propose these four operation 
 
 Any proposal for an operation outside this allowlist — most importantly anything that would amount to direct crystallization/refining-line control, or food-safety certification — is refused unconditionally by the Governor (`:op-not-allowed`), regardless of advisor confidence.
 
+## Module structure
+
+- `sugarops.facts` — reference data: product-type refining windows, jurisdiction evidence/sulfite-declaration requirements
+- `sugarops.registry` — pure independent verification functions (moisture/polarization/color/ash/SO2/granulation/calibration/weight/sulfite/sanitation)
+- `sugarops.store` — pure functions on a plain map (`production-batch`/`log-batch`/`finalize-shipment`/`audit-trail`/`append-fact`, unchanged original contract) PLUS a `Store` protocol + `MemStore` + `DatomicStore` (via [`kotoba-lang/langchain-store`](https://github.com/kotoba-lang/langchain-store)) for the compiled StateGraph. Both backends pass the same contract (`test/sugarops/store_contract_test.cljc`).
+- `sugarops.advisor` — `Advisor` protocol + `MockAdvisor` (the sealed LLM/decision node)
+- `sugarops.governor` — `Sugar Governor`: 18 hard invariants + always-escalate high-stakes ops
+- `sugarops.phase` — the physical batch-phase state machine (`:intake` → ... → `:archived`)
+- `sugarops.operation` — `build`: the REAL `langgraph.graph` StateGraph wiring (`state-graph`/`add-node`/`add-edge`/`add-conditional-edges`/`compile-graph`), advisor → governor → commit/hold, with BOTH `:commit` and `:hold` durably appending to the real audit ledger; `run-operation` (pure govern-only flow) kept for direct testability
+- `sugarops.sim` — demo runner (`clojure -M:run`) driving the REAL compiled StateGraph via `langgraph.graph/run*`, including checkpointed interrupt/resume
+
 ## Testing
 
 ```bash
-# Run full test suite
-clojure -M:test
-
-# Check code quality
-clojure -M:lint
-
-# Run demo simulation
-clojure -M:run
+clojure -M:dev:test   # 62 tests / 230 assertions, green
+clojure -M:lint       # clj-kondo, 0 errors / 0 warnings
+clojure -M:dev:run     # demo runner, real compiled StateGraph end-to-end
 ```
 
 ## Standalone Use
@@ -78,8 +110,10 @@ clojure -M:run
 This repo is **forkable outside the workspace**. If cloning standalone (not in the kotoba-lang monorepo), override `:local/root` paths in `deps.edn`:
 
 ```clojure
-{:deps {io.github.kotoba-lang/langchain {:git/url "https://github.com/kotoba-lang/langchain" :git/tag "v0.1.0"}
-        io.github.kotoba-lang/langgraph {:git/url "https://github.com/kotoba-lang/langgraph" :git/tag "v0.1.0"}}}
+{:deps {io.github.kotoba-lang/langgraph {:git/url "https://github.com/kotoba-lang/langgraph" :git/tag "v0.1.0"}
+        io.github.kotoba-lang/langchain-store {:git/url "https://github.com/kotoba-lang/langchain-store" :git/tag "v0.1.0"}}
+ :aliases {:dev {:override-deps
+                 {io.github.kotoba-lang/langchain {:git/url "https://github.com/kotoba-lang/langchain" :git/tag "v0.1.0"}}}}}
 ```
 
 ## License
