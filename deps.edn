@@ -1,11 +1,24 @@
 {:paths ["src"]
- :deps {}
+ ;; langgraph brings langchain transitively (both zero-/single-dep,
+ ;; all .cljc -> portable to JVM / SCI / ClojureScript / GraalVM). It lives
+ ;; in the kotoba-lang org of this workspace. This repo is standalone
+ ;; (forkable outside the workspace); the :local/root paths only resolve
+ ;; inside the monorepo checkout -- a standalone fork should override
+ ;; them with git coordinates (see "Standalone Use" in README.md).
+ :deps {io.github.kotoba-lang/langgraph
+        {:local/root "../../kotoba-lang/langgraph"}
+        ;; langchain-store: the shared langchain.db store seam (EDN-blob
+        ;; codec + identity schema + event-log read/append helpers) that
+        ;; ~190 cloud-itonami actors hand-roll (ADR-2607141600);
+        ;; sugarops.store's DatomicStore uses it instead of its own
+        ;; enc/dec* two-liner.
+        io.github.kotoba-lang/langchain-store
+        {:local/root "../../kotoba-lang/langchain-store"}}
  :aliases
- {:dev {:override-deps
+ {;; offline workspace dev -- pin transitive langchain to local checkout
+  :dev {:override-deps
         {io.github.kotoba-lang/langchain
-         {:local/root "../../kotoba-lang/langchain"}
-        io.github.kotoba-lang/langgraph
-        {:local/root "../../kotoba-lang/langgraph"}}}
+         {:local/root "../../kotoba-lang/langchain"}}}
   :run {:main-opts ["-m" "sugarops.sim"]}
   :test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner
