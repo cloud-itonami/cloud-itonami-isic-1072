@@ -36,11 +36,12 @@
     * every human-approval row        -- the `:approval` and `:record`
                                          channels of the resumed
                                          `g/run*` state, plus a
-                                         per-row MEASUREMENT of whether
-                                         the approver identity survives
-                                         into anything the store
-                                         persists (see
-                                         `approver-attribution-present?`
+                                         per-row MEASUREMENT of WHICH
+                                         persisted surfaces (audit
+                                         ledger / batch register), if
+                                         any, still carry the approver
+                                         identity (see
+                                         `approver-attribution-sites`
                                          -- derived, never hard-coded)
 
   BUILD-TIME INVARIANT. `-main` refuses to write the file unless the run
@@ -468,6 +469,49 @@
   report attribution that is not actually there."
   #{:approved-by :approver :by})
 
+(defn- carries-approver-key?
+  "True when any map anywhere inside `form` has one of
+  `approver-attribution-keys` as a KEY."
+  [form]
+  (some (fn [node]
+          (and (map? node) (some approver-attribution-keys (keys node))))
+        (tree-seq coll? seq form)))
+
+(def ^:private attribution-site-labels
+  "Human label per persisted surface, so the rendered cell can name
+  WHERE the approver survived instead of saying only that it did."
+  {:ledger         "the persisted audit ledger"
+   :batch-register "the batch register"})
+
+(defn- approver-attribution-sites
+  "MEASURED, per subject: which of the store's persisted surfaces still
+  carry an approver-attribution key. Returns a (sorted, deterministic)
+  vector drawn from `#{:ledger :batch-register}`; EMPTY means nothing
+  the store persists names who decided.
+
+  Reporting the SITE rather than a bare boolean matters here. The two
+  ways an approver can go missing look identical to a boolean but are
+  different defects: the identity may reach a persisted ledger fact but
+  not the batch record, or it may never be persisted anywhere and
+  survive only in the graph run's in-memory `:approval` / `:audit`
+  channels. Saying `audit only` when the persisted ledger does not in
+  fact carry it would be exactly the kind of plausible-but-false claim
+  this page exists to avoid.
+
+  This is measured at render time, not asserted, so if
+  `sugarops.operation`'s `:commit` node is later changed to carry the
+  `:record` channel (which already holds `:approved-by`) into
+  `commit-fact` instead of re-reading `(:value proposal)`, or the
+  `:approval-granted` fact is passed to `store/append-ledger!`, this
+  page starts reporting the approver as retained -- and names the
+  surface it landed on -- without anyone editing this namespace."
+  [store subject]
+  (let [ledger-facts (filter #(= subject (:subject %)) (store/ledger store))
+        register (store/production-batch store subject)]
+    (cond-> []
+      (some carries-approver-key? ledger-facts) (conj :ledger)
+      (and register (carries-approver-key? register)) (conj :batch-register))))
+
 (defn- approver-attribution-present?
   "Walks everything the STORE persists for `subject` -- its ledger facts
   and its batch register -- and reports whether an approver-attribution
@@ -482,17 +526,18 @@
   namespace. A hard-coded 'the store drops it' note would have become
   false at that moment and nobody would have noticed."
   [store subject]
-  (let [persisted (concat (filter #(= subject (:subject %)) (store/ledger store))
-                          (when-let [b (store/production-batch store subject)] [b]))]
-    (boolean
-     (some (fn [form]
-             (some (fn [node]
-                     (and (map? node) (some approver-attribution-keys (keys node))))
-                   (tree-seq coll? seq form)))
-           persisted))))
+  (boolean (seq (approver-attribution-sites store subject))))
 
-(defn- decision-row [store {:keys [subject op status by record-approved-by]}]
-  (let [retained? (approver-attribution-present? store subject)]
+(defn- decision-row
+  "One answered escalation. The `retained?` column is the rendered form
+  of `approver-attribution-sites` -- it names the surfaces the approver
+  survived on, or, when there are none, says plainly that the store
+  persists no decider at all and points at where the identity DID
+  exist (the graph's in-memory `:record` channel) so the gap is
+  locatable rather than merely reported."
+  [store {:keys [subject op status by record-approved-by]}]
+  (let [sites (approver-attribution-sites store subject)
+        decision-word (if (= :approved status) "approver" "rejecter")]
     (format (str "        <tr><td><code>%s</code></td><td><code>%s</code></td><td>%s</td>"
                  "<td>%s</td><td>%s</td></tr>")
             (esc subject) (esc (kw-str op))
@@ -502,12 +547,18 @@
             (if by
               (format "<code>%s</code>" (esc by))
               "<span class=\"muted\">none recorded</span>")
-            (if retained?
-              "<span class=\"ok\">yes — present in the stored record</span>"
-              (str "<span class=\"warn\">no — audit only, not retained in record</span>"
-                   " <span class=\"muted\">(graph <code>:record</code> channel held <code>:approved-by "
+            (if (seq sites)
+              (str "<span class=\"ok\">yes — retained in "
+                   (esc (str/join " and " (map attribution-site-labels sites)))
+                   "</span>")
+              (str "<span class=\"warn\">no — nothing the store persists names the "
+                   decision-word "</span>"
+                   " <span class=\"muted\">(neither the persisted audit ledger nor the batch"
+                   " register carries <code>:approved-by</code> / <code>:approver</code> /"
+                   " <code>:by</code>; the identity existed only in the graph run's"
+                   " in-memory <code>:record</code> channel, which held <code>:approved-by "
                    (esc (pr-str record-approved-by))
-                   "</code>; the committed fact re-reads <code>(:value proposal)</code>)</span>")))))
+                   "</code>)</span>")))))
 
 (defn- basis-str
   "`:basis` is a vector of rule keywords on holds and a vector of
