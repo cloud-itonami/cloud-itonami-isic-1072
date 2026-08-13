@@ -2524,6 +2524,20 @@ img,svg { max-width: 100%; height: auto; }</style></head><body>
     </table>
   </section>
   <section class="card">
+    <h2>Human approvals in this run</h2>
+    <p class="muted">Every escalation a human actually answered. The right-hand column is <em>measured</em> per row, not asserted: it walks what <code>sugarops.store</code> persisted for that batch — ledger facts and batch register — looking for an approver-attribution key (<code>:approved-by</code> / <code>:approver</code> / <code>:by</code>). Matching is by key, never by value, because the committed fact already carries <code>:actor &quot;operator-01&quot;</code> (the requesting context) which happens to be the same string as the approver here — a value scan would report attribution that is not there.</p>
+    <p class="muted"><strong>Observed on this build:</strong> the approver identity reaches the graph's <code>:record</code> channel — <code>sugarops.operation</code>'s <code>:request-approval</code> node writes <code>(assoc (:value proposal) :approved-by (:by approval))</code> — but <code>:commit</code> builds its ledger fact from <code>(:value proposal)</code> again and never reads that channel back, and the <code>:approval-granted</code> fact is never passed to <code>store/append-ledger!</code>. So nothing durable retains who approved. This paragraph is emitted only while that is still true.</p>
+    <table>
+      <thead><tr><th>Batch</th><th>Op</th><th>Decision</th><th>Decided by</th><th>Retained in store?</th></tr></thead>
+      <tbody>
+        <tr><td><code>batch-001</code></td><td><code>log-production-batch</code></td><td><span class="ok">approved</span></td><td><code>operator-01</code></td><td><span class="warn">no — audit only, not retained in record</span> <span class="muted">(graph <code>:record</code> channel held <code>:approved-by "operator-01"</code>; the committed fact re-reads <code>(:value proposal)</code>)</span></td></tr>
+        <tr><td><code>batch-001</code></td><td><code>coordinate-shipment</code></td><td><span class="ok">approved</span></td><td><code>operator-01</code></td><td><span class="warn">no — audit only, not retained in record</span> <span class="muted">(graph <code>:record</code> channel held <code>:approved-by "operator-01"</code>; the committed fact re-reads <code>(:value proposal)</code>)</span></td></tr>
+        <tr><td><code>batch-002</code></td><td><code>flag-food-safety-concern</code></td><td><span class="ok">approved</span></td><td><code>operator-01</code></td><td><span class="warn">no — audit only, not retained in record</span> <span class="muted">(graph <code>:record</code> channel held <code>:approved-by "operator-01"</code>; the committed fact re-reads <code>(:value proposal)</code>)</span></td></tr>
+        <tr><td><code>batch-005</code></td><td><code>coordinate-shipment</code></td><td><span class="warn">rejected</span></td><td><code>operator-01</code></td><td><span class="warn">no — audit only, not retained in record</span> <span class="muted">(graph <code>:record</code> channel held <code>:approved-by nil</code>; the committed fact re-reads <code>(:value proposal)</code>)</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="card">
     <h2>Audit ledger (this run)</h2>
     <p class="muted">Append-only decision facts, in append order, exactly as <code>sugarops.store/ledger</code> returned them — 4 commit(s), 7 hold(s), of which 6 were hard.</p>
     <table>

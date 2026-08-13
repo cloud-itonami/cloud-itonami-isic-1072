@@ -33,6 +33,22 @@
                                          audit ledger
     * every audit-ledger row          -- `sugarops.store/ledger`, in
                                          append order
+    * every human-approval row        -- the `:approval` and `:record`
+                                         channels of the resumed
+                                         `g/run*` state, plus a
+                                         per-row MEASUREMENT of whether
+                                         the approver identity survives
+                                         into anything the store
+                                         persists (see
+                                         `approver-attribution-present?`
+                                         -- derived, never hard-coded)
+
+  BUILD-TIME INVARIANT. `-main` refuses to write the file unless the run
+  actually produced `:governor-hold` facts AND every rule that fired is
+  named in the rendered document (`assert-hard-holds!`). A console with
+  no HARD hold on it cannot be distinguished from a console whose
+  governor was never wired up, so it is treated as a build failure
+  rather than a page.
 
   What on the page is a STATIC DESCRIPTION OF A FIXED CONTRACT (and
   said so plainly in the section itself): the \"action gate\" table.
@@ -192,13 +208,40 @@
 (defn- exec! [actor tid request]
   (g/run* actor {:request request :context plant-operator} {:thread-id tid}))
 
+(defn- decision
+  "Projects the approval-attribution evidence out of ONE resumed
+  `g/run*` result. Everything here is read off the graph's own state
+  channels, never re-typed:
+
+    :by                    -- the `:approval` channel, i.e. exactly the
+                              value the resuming caller handed the
+                              interrupt.
+    :record-approved-by    -- the `:record` channel, which
+                              `sugarops.operation`'s `:request-approval`
+                              node writes as
+                              `(assoc (:value proposal) :approved-by
+                              (:by approval))`.
+
+  The gap between `:record-approved-by` and what the STORE ends up
+  holding is the whole point of the disclosure section below -- see
+  `approver-attribution-present?`. This function deliberately does not
+  consult the store at all."
+  [result]
+  (let [st (:state result)
+        appr (:approval st)]
+    {:subject             (get-in st [:request :subject])
+     :op                  (get-in st [:request :op])
+     :status              (:status appr)
+     :by                  (:by appr)
+     :record-approved-by  (get-in st [:record :approved-by])}))
+
 (defn- approve! [actor tid]
-  (g/run* actor {:approval {:status :approved :by "operator-01"}}
-          {:thread-id tid :resume? true}))
+  (decision (g/run* actor {:approval {:status :approved :by "operator-01"}}
+                    {:thread-id tid :resume? true})))
 
 (defn- reject! [actor tid]
-  (g/run* actor {:approval {:status :rejected :by "operator-01"}}
-          {:thread-id tid :resume? true}))
+  (decision (g/run* actor {:approval {:status :rejected :by "operator-01"}}
+                    {:thread-id tid :resume? true})))
 
 (defn run-demo!
   "Builds a fresh seeded `sugarops.store/mem-store`, compiles the REAL
@@ -243,22 +286,24 @@
   []
   (let [seed (seed-batches)
         st (store/mem-store {:initial-batches (into {} seed)})
-        actor (operation/build st)]
+        actor (operation/build st)
+        decisions (atom [])
+        decide! (fn [d] (swap! decisions conj d) d)]
 
     (exec! actor "t01" {:op :schedule-maintenance :subject "batch-001"
                         :equipment "crystallizer" :reason "scheduled-descale"})
 
     (exec! actor "t02" {:op :log-production-batch :subject "batch-001"})
-    (approve! actor "t02")
+    (decide! (approve! actor "t02"))
 
     (exec! actor "t03" {:op :log-production-batch :subject "batch-001"})
 
     (exec! actor "t04" {:op :coordinate-shipment :subject "batch-001"})
-    (approve! actor "t04")
+    (decide! (approve! actor "t04"))
 
     (exec! actor "t05" {:op :flag-food-safety-concern :subject "batch-002"
                         :concern "SO2 residue above product action level"})
-    (approve! actor "t05")
+    (decide! (approve! actor "t05"))
 
     (exec! actor "t06" {:op :log-production-batch :subject "batch-002"})
 
@@ -267,13 +312,13 @@
     (exec! actor "t08" {:op :log-production-batch :subject "batch-004"})
 
     (exec! actor "t09" {:op :coordinate-shipment :subject "batch-005"})
-    (reject! actor "t09")
+    (decide! (reject! actor "t09"))
 
     (exec! actor "t10" {:op :schedule-maintenance :subject "batch-999"})
 
     (exec! actor "t11" {:op :crystallizer/control :subject "batch-001"})
 
-    {:store st :batch-ids (mapv first seed)}))
+    {:store st :batch-ids (mapv first seed) :decisions @decisions}))
 
 ;; ----------------------------- rendering helpers -----------------------------
 
@@ -412,6 +457,58 @@
             (esc (kw-str (:rule v)))
             (esc (:detail v "")))))
 
+;; --------------- approver attribution (DERIVED, never asserted) ---------------
+
+(def ^:private approver-attribution-keys
+  "Keys that would carry a human approver's identity if anything the
+  store persists carried it at all. Matched by KEY, deliberately not by
+  value: the committed fact already contains `:actor \"operator-01\"`
+  (the requesting context's actor-id), which in this scenario happens to
+  be the same string as the approver -- a value scan would therefore
+  report attribution that is not actually there."
+  #{:approved-by :approver :by})
+
+(defn- approver-attribution-present?
+  "Walks everything the STORE persists for `subject` -- its ledger facts
+  and its batch register -- and reports whether an approver-attribution
+  key survives anywhere in it.
+
+  This is MEASURED at render time, not asserted. The disclosure rendered
+  next to each approval is whatever this returns, so if
+  `sugarops.operation`'s `:commit` node is later changed to carry the
+  `:record` channel (which already holds `:approved-by`) into
+  `commit-fact` instead of re-reading `(:value proposal)`, this page
+  starts reporting the approver as retained without anyone editing this
+  namespace. A hard-coded 'the store drops it' note would have become
+  false at that moment and nobody would have noticed."
+  [store subject]
+  (let [persisted (concat (filter #(= subject (:subject %)) (store/ledger store))
+                          (when-let [b (store/production-batch store subject)] [b]))]
+    (boolean
+     (some (fn [form]
+             (some (fn [node]
+                     (and (map? node) (some approver-attribution-keys (keys node))))
+                   (tree-seq coll? seq form)))
+           persisted))))
+
+(defn- decision-row [store {:keys [subject op status by record-approved-by]}]
+  (let [retained? (approver-attribution-present? store subject)]
+    (format (str "        <tr><td><code>%s</code></td><td><code>%s</code></td><td>%s</td>"
+                 "<td>%s</td><td>%s</td></tr>")
+            (esc subject) (esc (kw-str op))
+            (if (= :approved status)
+              "<span class=\"ok\">approved</span>"
+              "<span class=\"warn\">rejected</span>")
+            (if by
+              (format "<code>%s</code>" (esc by))
+              "<span class=\"muted\">none recorded</span>")
+            (if retained?
+              "<span class=\"ok\">yes — present in the stored record</span>"
+              (str "<span class=\"warn\">no — audit only, not retained in record</span>"
+                   " <span class=\"muted\">(graph <code>:record</code> channel held <code>:approved-by "
+                   (esc (pr-str record-approved-by))
+                   "</code>; the committed fact re-reads <code>(:value proposal)</code>)</span>")))))
+
 (defn- basis-str
   "`:basis` is a vector of rule keywords on holds and a vector of
   citation maps on commits -- render both without pretending they are
@@ -441,10 +538,11 @@
   projected out of that live store; see the ns docstring for exactly
   which parts are runtime output and which one section is a
   code-derived description of a fixed contract."
-  [{:keys [store batch-ids]}]
+  [{:keys [store batch-ids decisions]}]
   (let [ledger (vec (store/ledger store))
         commits (count (filter #(= :commit (:disposition %)) ledger))
-        hard-holds (count (filter #(= :governor-hold (:t %)) ledger))]
+        hard-holds (count (filter #(= :governor-hold (:t %)) ledger))
+        any-retained? (some #(approver-attribution-present? store (:subject %)) decisions)]
     (str
      "<!doctype html>\n"
      "<html lang=\"en\"><head><meta charset=\"utf-8\">"
@@ -503,6 +601,20 @@
      "  </section>\n"
 
      "  <section class=\"card\">\n"
+     "    <h2>Human approvals in this run</h2>\n"
+     "    <p class=\"muted\">Every escalation a human actually answered. The right-hand column is <em>measured</em> per row, not asserted: it walks what <code>sugarops.store</code> persisted for that batch — ledger facts and batch register — looking for an approver-attribution key (<code>:approved-by</code> / <code>:approver</code> / <code>:by</code>). Matching is by key, never by value, because the committed fact already carries <code>:actor &quot;operator-01&quot;</code> (the requesting context) which happens to be the same string as the approver here — a value scan would report attribution that is not there.</p>\n"
+     (if any-retained?
+       ""
+       (str "    <p class=\"muted\"><strong>Observed on this build:</strong> the approver identity reaches the graph's <code>:record</code> channel — <code>sugarops.operation</code>'s <code>:request-approval</code> node writes <code>(assoc (:value proposal) :approved-by (:by approval))</code> — but <code>:commit</code> builds its ledger fact from <code>(:value proposal)</code> again and never reads that channel back, and the <code>:approval-granted</code> fact is never passed to <code>store/append-ledger!</code>. So nothing durable retains who approved. This paragraph is emitted only while that is still true.</p>\n"))
+     "    <table>\n"
+     "      <thead><tr><th>Batch</th><th>Op</th><th>Decision</th><th>Decided by</th><th>Retained in store?</th></tr></thead>\n"
+     "      <tbody>\n"
+     (str/join "\n" (map (partial decision-row store) decisions)) "\n"
+     "      </tbody>\n"
+     "    </table>\n"
+     "  </section>\n"
+
+     "  <section class=\"card\">\n"
      "    <h2>Audit ledger (this run)</h2>\n"
      "    <p class=\"muted\">Append-only decision facts, in append order, exactly as <code>sugarops.store/ledger</code> returned them — "
      commits " commit(s), " (- (count ledger) commits) " hold(s), of which " hard-holds " were hard.</p>\n"
@@ -520,14 +632,46 @@
      "</footer>\n"
      "</body></html>\n")))
 
+(defn- assert-hard-holds!
+  "BUILD-TIME INVARIANT, not a comment: refuse to emit a console that
+  does not demonstrate the Governor actually stopping something.
+
+  A page showing only green rows is indistinguishable from a page whose
+  governor was never wired up -- which is precisely the failure this
+  whole artifact exists to rule out. So the two things that would make
+  the demonstration vacuous are checked and are fatal:
+
+    1. the run produced zero `:governor-hold` ledger facts, and
+    2. the rendered document does not actually name every rule that
+       fired (a hold reached the ledger but silently failed to reach
+       the page).
+
+  (2) matters because (1) alone would still pass if the hard-hold
+  section were dropped from `render`."
+  [ledger html]
+  (let [holds (filterv #(= :governor-hold (:t %)) ledger)
+        rules (into (sorted-set) (comp (mapcat :violations) (map :rule)) holds)]
+    (when (empty? holds)
+      (throw (ex-info (str "refusing to write the operator console: the scenario produced ZERO "
+                           ":governor-hold facts, so the page would demonstrate no HARD hold at all. "
+                           "A console of only-green rows cannot be told apart from an unwired governor.")
+                      {:ledger-facts (count ledger) :hard-holds 0})))
+    (when-let [missing (seq (remove #(str/includes? html (kw-str %)) rules))]
+      (throw (ex-info (str "refusing to write the operator console: " (count missing)
+                           " HARD-hold rule(s) fired in the run but do not appear in the rendered page.")
+                      {:missing (vec missing) :fired (vec rules)})))
+    {:holds (count holds) :rules (vec rules)}))
+
 (defn -main [& args]
   (let [out (or (first args) "docs/samples/operator-console.html")
         result (run-demo!)
         ledger (vec (store/ledger (:store result)))
-        html (render result)]
+        html (render result)
+        {:keys [holds rules]} (assert-hard-holds! ledger html)]
     (spit out html)
     (println "wrote" out
              "(" (count ledger) "ledger facts,"
              (count (:batch-ids result)) "registered batches,"
              (count (filter #(= :commit (:disposition %)) ledger)) "commits,"
-             (count (filter #(= :governor-hold (:t %)) ledger)) "hard holds )")))
+             (count (:decisions result)) "human decisions,"
+             holds "hard holds:" (str/join " " (map kw-str rules)) ")")))
