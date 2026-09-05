@@ -408,10 +408,17 @@
                         (:metal-detector-last-calibration-date b)
                         (System/currentTimeMillis))
                        "overdue (&gt;90d)" "current (&le;90d)")
-            (verdict-cell (:weight-variance-grams b) "max 50g"
-                          (registry/weight-variance-excessive? (:weight-variance-grams b) 50))
-            (verdict-cell (:sanitation-score b) "min 75"
-                          (registry/sanitation-score-insufficient? (:sanitation-score b) 75))
+            ;; Both the stated bound AND the verdict come from the
+            ;; Governor's own published limit, so the column cannot state
+            ;; one number while grading against another.
+            (verdict-cell (:weight-variance-grams b)
+                          (str "max " governor/weight-variance-max-grams "g")
+                          (registry/weight-variance-excessive?
+                           (:weight-variance-grams b) governor/weight-variance-max-grams))
+            (verdict-cell (:sanitation-score b)
+                          (str "min " governor/sanitation-score-min)
+                          (registry/sanitation-score-insufficient?
+                           (:sanitation-score b) governor/sanitation-score-min))
             (bool-cell (registry/sulfite-label-risk? (:so2-ppm b) threshold
                                                      (:declared-allergens b))
                        "undeclared"

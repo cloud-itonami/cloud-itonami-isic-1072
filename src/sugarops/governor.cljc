@@ -77,6 +77,25 @@
 
 (def confidence-floor 0.6)
 
+(def weight-variance-max-grams
+  "Maximum tolerated per-batch fill-weight variance, in grams, above
+  which `weight-variance-excessive-violations` raises a HARD hold.
+
+  Named rather than inlined at the call site because this is a limit the
+  Governor PUBLISHES: `sugarops.render-html` renders it as the stated
+  bound in the operator console's physical-verification table. When the
+  number lived as a bare literal in both places, changing the Governor
+  left the console asserting the old bound while silently grading
+  against it -- a page that disagrees with the code it claims to
+  describe."
+  50)
+
+(def sanitation-score-min
+  "Minimum acceptable plant sanitation/pest-control score, below which
+  `sanitation-score-insufficient-violations` raises a HARD hold.
+  Published for the same reason as `weight-variance-max-grams`."
+  75)
+
 (def high-stakes
   "Stakes grave enough to always require a human, even when clean.
   Logging a batch into production records (`:log-production-batch`) and
@@ -312,10 +331,12 @@
   (when (= op :log-production-batch)
     (let [b (store/production-batch st subject)]
       (when (and b (:weight-variance-grams b)
-                 (registry/weight-variance-excessive? (:weight-variance-grams b) 50))
+                 (registry/weight-variance-excessive? (:weight-variance-grams b)
+                                                      weight-variance-max-grams))
         [{:rule :weight-variance-excessive
           :detail (str subject " の重量分散(" (:weight-variance-grams b)
-                      "g)が許容範囲(50g)を超過 -- バッチ登録提案は進められない")}]))))
+                      "g)が許容範囲(" weight-variance-max-grams
+                      "g)を超過 -- バッチ登録提案は進められない")}]))))
 
 (defn- sulfite-label-mismatch-violations
   "For `:log-production-batch`, INDEPENDENTLY verify sulfite declaration
@@ -337,10 +358,12 @@
   (when (= op :log-production-batch)
     (let [b (store/production-batch st subject)]
       (when (and b (:sanitation-score b)
-                 (registry/sanitation-score-insufficient? (:sanitation-score b) 75))
+                 (registry/sanitation-score-insufficient? (:sanitation-score b)
+                                                          sanitation-score-min))
         [{:rule :sanitation-score-insufficient
           :detail (str subject " のプラント衛生/防虫スコア(" (:sanitation-score b)
-                      ")が最低要件(75)を下回る -- バッチ登録提案は進められない")}]))))
+                      ")が最低要件(" sanitation-score-min
+                      ")を下回る -- バッチ登録提案は進められない")}]))))
 
 (defn- food-safety-flag-unresolved-violations
   "An unresolved food-safety flag is a HARD, un-overridable hold.
