@@ -50,7 +50,7 @@
  always-escalate high-stakes ops (`:log-production-batch`/
  `:coordinate-shipment`/`:flag-food-safety-concern`) elaborate this
  blueprint's Governor -- proven end-to-end through the REAL compiled
- graph by a new `test/sugarops/build_test.cljc` (commit / hard-hold /
+ graph by a new `test/sugarops/build_test.cljk` (commit / hard-hold /
  escalate-approve-and-mark-processed / escalate-reject-holds) plus a
  `clojure -M:dev:run` demo runner producing 4 distinct real ledger
  entries. 62 tests / 230 assertions green (`clojure -M:dev:test`,

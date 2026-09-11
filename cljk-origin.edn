@@ -1,0 +1,22 @@
+{:format :kotoba.cljk-origin/v1
+ :renamed-on "2026-09-11"
+ :decision "adr-2609111500-cljk-rename-all-clojure-source (com-junkawasaki/root 90-docs/adr; owner instruction 2026-09-11)"
+ :rule "value = the extension the file had before the rename. A path ending in .clj.cljk or .cljs.cljk kept it in the name because both platform files existed (or the plain target was taken)."
+ :origins
+ {"src/sugarops/advisor.cljk" ".cljc"
+  "src/sugarops/facts.cljk" ".cljc"
+  "src/sugarops/governor.cljk" ".cljc"
+  "src/sugarops/operation.cljk" ".cljc"
+  "src/sugarops/phase.cljk" ".cljc"
+  "src/sugarops/registry.cljk" ".cljc"
+  "src/sugarops/render_html.cljk" ".clj"
+  "src/sugarops/sim.cljk" ".cljc"
+  "src/sugarops/store.cljk" ".cljc"
+  "test/sugarops/build_test.cljk" ".cljc"
+  "test/sugarops/facts_test.cljk" ".cljc"
+  "test/sugarops/governor_test.cljk" ".cljc"
+  "test/sugarops/operation_test.cljk" ".cljc"
+  "test/sugarops/phase_test.cljk" ".cljc"
+  "test/sugarops/registry_test.cljk" ".cljc"
+  "test/sugarops/store_contract_test.cljk" ".cljc"
+  "test/sugarops/store_test.cljk" ".cljc"}}
