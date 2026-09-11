@@ -2469,7 +2469,7 @@ img,svg { max-width: 100%; height: auto; }</style></head><body>
 <main>
   <section class="card">
     <h2>Production batches</h2>
-    <p class="muted">Build-time snapshot: every row is read back out of the live <code>sugarops.store</code> after the scenario ran, and every pass/fail marker is computed by the Governor's own independent verifiers in <code>sugarops.registry</code> — not by reading the numbers. Regenerate with <code>clojure -M:dev:render-html</code>.</p>
+    <p class="muted">Build-time snapshot: every row is read back out of the live <code>sugarops.store</code> after the scenario ran, and every pass/fail marker is computed by the Governor's own independent verifiers in <code>sugarops.registry</code> — not by reading the numbers. Regenerate with <code>kbb -M:dev:render-html</code>.</p>
     <table>
       <thead><tr><th>Batch</th><th>Product</th><th>Jurisdiction</th><th>Moisture</th><th>Polarization</th><th>Color (ICUMSA)</th><th>SO<sub>2</sub></th><th>Lifecycle</th><th>Last op</th></tr></thead>
       <tbody>

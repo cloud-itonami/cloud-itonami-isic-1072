@@ -1,5 +1,5 @@
 (ns sugarops.sim
-  "Demo driver -- `clojure -M:dev:run`. Walks a registered production
+  "Demo driver -- `kbb -M:dev:run`. Walks a registered production
   batch through a clean phase auto-commit (`:schedule-maintenance`),
   an always-escalate batch-logging commit (plant operator approves),
   an always-escalate shipment coordination (plant operator rejects),
@@ -93,7 +93,7 @@
     {:ledger (store/ledger st)}))
 
 (defn -main
-  "clojure -M:run entrypoint."
+  "kbb -M:run entrypoint."
   [& _args]
   (demo))
 

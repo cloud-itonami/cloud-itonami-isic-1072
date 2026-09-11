@@ -95,14 +95,14 @@ Any proposal for an operation outside this allowlist — most importantly anythi
 - `sugarops.governor` — `Sugar Governor`: 18 hard invariants + always-escalate high-stakes ops
 - `sugarops.phase` — the physical batch-phase state machine (`:intake` → ... → `:archived`)
 - `sugarops.operation` — `build`: the REAL `langgraph.graph` StateGraph wiring (`state-graph`/`add-node`/`add-edge`/`add-conditional-edges`/`compile-graph`), advisor → governor → commit/hold, with BOTH `:commit` and `:hold` durably appending to the real audit ledger; `run-operation` (pure govern-only flow) kept for direct testability
-- `sugarops.sim` — demo runner (`clojure -M:run`) driving the REAL compiled StateGraph via `langgraph.graph/run*`, including checkpointed interrupt/resume
+- `sugarops.sim` — demo runner (`kbb -M:run`) driving the REAL compiled StateGraph via `langgraph.graph/run*`, including checkpointed interrupt/resume
 
 ## Testing
 
 ```bash
-clojure -M:dev:test   # 62 tests / 230 assertions, green
-clojure -M:lint       # clj-kondo, 0 errors / 0 warnings
-clojure -M:dev:run     # demo runner, real compiled StateGraph end-to-end
+kbb -M:dev:test   # 62 tests / 230 assertions, green
+kbb -M:lint       # clj-kondo, 0 errors / 0 warnings
+kbb -M:dev:run     # demo runner, real compiled StateGraph end-to-end
 ```
 
 ## Standalone Use
