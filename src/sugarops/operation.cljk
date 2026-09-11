@@ -23,7 +23,7 @@
   ```
 
   `run-operation` is KEPT UNCHANGED (still exercised directly by
-  `test/sugarops/operation_test.cljc`'s pre-existing tests): it's the
+  `test/sugarops/operation_test.cljk`'s pre-existing tests): it's the
   pure govern-only half of the flow (given an already-formed
   proposal, censor it) -- useful as a standalone entry point
   independent of a compiled graph or a store's advisor. The compiled

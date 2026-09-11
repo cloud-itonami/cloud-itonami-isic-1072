@@ -8,7 +8,7 @@
        batch-map} :facts [...]}`) -- `production-batch`,
        `batch-already-processed?`, `batch-shipment-finalized?`,
        `log-batch`, `finalize-shipment`, `audit-trail`, `append-fact`.
-       This is the ORIGINAL surface (`test/sugarops/store_test.cljc`
+       This is the ORIGINAL surface (`test/sugarops/store_test.cljk`
        and `sugarops.governor`'s violation checks call these directly
        against plain maps) and stays byte-identical in behavior for
        plain-map input -- these are the historical \"MemStore\"
@@ -34,11 +34,11 @@
   rules are not touched by this layer.
 
   Both `Store` backends pass the same contract
-  (test/sugarops/store_contract_test.cljc). `ledger`/`append-ledger!`
+  (test/sugarops/store_contract_test.cljk). `ledger`/`append-ledger!`
   is the append-only audit ledger `sugarops.operation`'s `:commit`/
   `:hold` graph nodes append every committed/held decision fact to --
   previously `append-fact` existed but was never called from
-  `sugarops.operation` at all, only from `test/sugarops/store_test.cljc`."
+  `sugarops.operation` at all, only from `test/sugarops/store_test.cljk`."
   (:require [langchain.db :as d]
             [langchain-store.core :as ls]))
 

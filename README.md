@@ -90,7 +90,7 @@ Any proposal for an operation outside this allowlist — most importantly anythi
 
 - `sugarops.facts` — reference data: product-type refining windows, jurisdiction evidence/sulfite-declaration requirements
 - `sugarops.registry` — pure independent verification functions (moisture/polarization/color/ash/SO2/granulation/calibration/weight/sulfite/sanitation)
-- `sugarops.store` — pure functions on a plain map (`production-batch`/`log-batch`/`finalize-shipment`/`audit-trail`/`append-fact`, unchanged original contract) PLUS a `Store` protocol + `MemStore` + `DatomicStore` (via [`kotoba-lang/langchain-store`](https://github.com/kotoba-lang/langchain-store)) for the compiled StateGraph. Both backends pass the same contract (`test/sugarops/store_contract_test.cljc`).
+- `sugarops.store` — pure functions on a plain map (`production-batch`/`log-batch`/`finalize-shipment`/`audit-trail`/`append-fact`, unchanged original contract) PLUS a `Store` protocol + `MemStore` + `DatomicStore` (via [`kotoba-lang/langchain-store`](https://github.com/kotoba-lang/langchain-store)) for the compiled StateGraph. Both backends pass the same contract (`test/sugarops/store_contract_test.cljk`).
 - `sugarops.advisor` — `Advisor` protocol + `MockAdvisor` (the sealed LLM/decision node)
 - `sugarops.governor` — `Sugar Governor`: 18 hard invariants + always-escalate high-stakes ops
 - `sugarops.phase` — the physical batch-phase state machine (`:intake` → ... → `:archived`)

@@ -9,7 +9,7 @@
   This is new: before this pass, `sugarops.store` had no `Store`
   protocol / no `DatomicStore` at all -- only pure functions on plain
   maps (still exercised directly, unchanged, by
-  `test/sugarops/store_test.cljc`)."
+  `test/sugarops/store_test.cljk`)."
   (:require [clojure.test :refer [deftest is]]
             [sugarops.store :as store]))
 
