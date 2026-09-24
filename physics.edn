@@ -1,0 +1,29 @@
+{:physics/schema "itonami.physical-ai.spec.v1"
+ :repo "cloud-itonami/cloud-itonami-isic-1072"
+ :cases
+ [{:id :molasses-transfer
+   :kind :pipe-flow
+   :procedure "positive-displacement pump transfers final molasses from the centrifugal station to the molasses tank"
+   :params {:diameter-m 0.10 :length-m 50.0 :roughness-m 4.5e-5
+            :density-kg-m3 1400.0 :viscosity-pa-s 5.0 :pump-efficiency 0.5 :elevation-m 6.0}
+   :sweep {:param :q-m3s :values [0.0005 0.001 0.002 0.003 0.004]}
+   :quantity :pressure-drop-pa
+   :limit {:max 1.0e6 :basis "estimate: ~10 bar rating of a molasses gear/lobe pump"}
+   :boundary {:lo 1.0e-4 :hi 0.02}}
+  {:id :raw-juice-tank-drain
+   :kind :tank-drain
+   :procedure "robot opens the outlet of the raw-juice buffer tank to feed the liming station"
+   :params {:tank-area-m2 7.0 :h0-m 3.0 :h-target-m 0.3 :cd 0.62 :dt-s 1.0}
+   :sweep {:param :orifice-area-m2 :values [0.002 0.004 0.006 0.008 0.010]}
+   :quantity :time-to-target-s
+   :limit {:max 1800.0 :basis "estimate: raw juice should not stand more than ~30 min before liming (sucrose inversion / microbial loss)"}
+   :boundary {:lo 5.0e-4 :hi 0.03}}
+  {:id :sugar-bag-palletize
+   :kind :manipulator
+   :procedure "palletizing arm lifts a filled sugar bag off the bagging scale onto the pallet"
+   :params {:l1-m 0.90 :l2-m 0.80 :m1-kg 18.0 :m2-kg 12.0
+            :from [0.90 0.20] :to [0.40 1.20] :duration-s 3.0 :steps 500}
+   :sweep {:param :payload-kg :values [10.0 25.0 40.0 50.0 60.0]}
+   :quantity :peak-tau1-nm
+   :limit {:max 600.0 :basis "estimate: continuous shoulder torque of a mid-size palletizing arm rated for 50 kg bags"}
+   :boundary {:lo 1.0 :hi 100.0}}]}
