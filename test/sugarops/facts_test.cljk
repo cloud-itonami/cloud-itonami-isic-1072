@@ -1,5 +1,5 @@
 (ns sugarops.facts-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [sugarops.facts :as facts]))
 
 ;; ──────────────────────── Product Type Lookups ──────────────────────

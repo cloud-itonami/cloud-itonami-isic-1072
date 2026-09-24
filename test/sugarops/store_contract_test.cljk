@@ -10,7 +10,7 @@
   protocol / no `DatomicStore` at all -- only pure functions on plain
   maps (still exercised directly, unchanged, by
   `test/sugarops/store_test.cljk`)."
-  (:require [clojure.test :refer [deftest is]]
+  (:require [kotoba.test :refer [deftest is]]
             [sugarops.store :as store]))
 
 (defn- exercise [s]

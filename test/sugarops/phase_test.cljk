@@ -1,5 +1,5 @@
 (ns sugarops.phase-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [sugarops.phase :as phase]))
 
 ;; ──────────────────────── Phase Validity ──────────────────────

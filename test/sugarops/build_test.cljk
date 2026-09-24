@@ -10,7 +10,7 @@
   compiled graph is real, that the advisor is genuinely wired into
   `:advise`, and that the audit ledger (`sugarops.store/append-
   ledger!`) is genuinely wired into the `:commit`/`:hold` nodes."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [langgraph.graph :as g]
             [sugarops.operation :as operation]
             [sugarops.store :as store]))
